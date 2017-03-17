@@ -14,7 +14,6 @@ const (
 )
 
 type Dispatcher interface {
-	HandleDevice(*Grid)
 	HandleConnect(*Grid)
 	HandleDisconnect(*Grid)
 }
@@ -60,7 +59,9 @@ func (m *Monome) newDevice(id string, typ string, port int32) {
 
 	g := NewGrid(port)
 	m.devices[id] = g
-	m.d.HandleDevice(g)
+
+	<-g.ready
+	m.d.HandleConnect(g)
 }
 
 func (m *Monome) sendList() {
@@ -110,5 +111,7 @@ func (m *Monome) handleRemove(msg *osc.Message) {
 }
 
 func (m *Monome) Start() {
-	m.s.ListenAndServe()
+	if err := m.s.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 }
