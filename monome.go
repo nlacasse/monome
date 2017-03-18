@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/hypebeast/go-osc/osc"
+	"github.com/nlacasse/go-osc/osc"
 )
 
 const (
@@ -13,30 +13,32 @@ const (
 	cport = 12002
 )
 
-type Dispatcher interface {
-	HandleConnect(*Grid)
-	HandleDisconnect(*Grid)
-}
-
 type Monome struct {
 	s *osc.Server
 	c *osc.Client
-	d Dispatcher
 
-	mu      sync.Mutex
-	devices map[string]*Grid
+	mu        sync.Mutex
+	deviceMap map[string]*Grid
+
+	Devices chan *Grid
 }
 
-func New(d Dispatcher) *Monome {
+func New() *Monome {
 	m := &Monome{
-		s:       &osc.Server{Addr: fmt.Sprintf("127.0.0.1:%d", sport)},
-		c:       osc.NewClient("127.0.0.1", cport),
-		d:       d,
-		devices: make(map[string]*Grid),
+		s:         &osc.Server{Addr: fmt.Sprintf("127.0.0.1:%d", sport)},
+		c:         osc.NewClient("127.0.0.1", cport),
+		deviceMap: make(map[string]*Grid),
+		Devices:   make(chan *Grid),
 	}
 	m.s.Handle("/serialosc/device", m.handleDevice)
 	m.s.Handle("/serialosc/add", m.handleAdd)
 	m.s.Handle("/serialosc/remove", m.handleRemove)
+
+	go func() {
+		if err := m.s.ListenAndServe(); err != nil {
+			log.Panic(err)
+		}
+	}()
 
 	m.sendNotify()
 	m.sendList()
@@ -52,16 +54,18 @@ func (m *Monome) newDevice(id string, typ string, port int32) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.devices[id]; ok {
+	if _, ok := m.deviceMap[id]; ok {
 		log.Printf("device %v already connected", id)
 		return
 	}
 
 	g := NewGrid(port)
-	m.devices[id] = g
-
+	// Wait for g to be ready.
 	<-g.ready
-	m.d.HandleConnect(g)
+
+	// Send g!
+	m.deviceMap[id] = g
+	m.Devices <- g
 }
 
 func (m *Monome) sendList() {
@@ -99,19 +103,13 @@ func (m *Monome) handleRemove(msg *osc.Message) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.devices[id]; !ok {
+	if _, ok := m.deviceMap[id]; !ok {
 		log.Printf("device %v not connected", id)
 		return
 	}
 
-	delete(m.devices, id)
+	delete(m.deviceMap, id)
 
 	// Wait for another one.
 	m.sendNotify()
-}
-
-func (m *Monome) Start() {
-	if err := m.s.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
 }

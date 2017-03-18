@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hypebeast/go-osc/osc"
+	"github.com/nlacasse/go-osc/osc"
 )
 
 const (
@@ -36,15 +36,21 @@ type Grid struct {
 	c      *osc.Client
 	prefix string
 	ready  chan struct{}
-	Ev     chan KeyEv
+
+	Ev         chan KeyEv
+	Disconnect chan struct{}
 }
 
 func NewGrid(port int32) *Grid {
+	log.Printf("NewGrid")
 	g := &Grid{
-		s:     &osc.Server{Addr: fmt.Sprintf("127.0.0.1:%d", gridServerPort)},
-		c:     osc.NewClient("127.0.0.1", int(port)),
-		ready: make(chan struct{}),
-		Ev:    make(chan KeyEv),
+		s: &osc.Server{
+			Addr: fmt.Sprintf("127.0.0.1:%d", gridServerPort),
+		},
+		c:          osc.NewClient("127.0.0.1", int(port)),
+		ready:      make(chan struct{}),
+		Ev:         make(chan KeyEv),
+		Disconnect: make(chan struct{}),
 	}
 
 	g.s.Handle("/sys/prefix", g.handlePrefix)
@@ -54,14 +60,14 @@ func NewGrid(port int32) *Grid {
 	g.s.Handle("/sys/rotation", g.handleRotation)
 	g.s.Handle("/sys/disconnect", g.handleDisconnect)
 
-	go g.s.ListenAndServe()
+	go func() {
+		if err := g.s.ListenAndServe(); err != nil {
+			log.Panic(err)
+		}
+	}()
 
 	g.c.Send(osc.NewMessage("/sys/port", int32(gridServerPort)))
 	g.c.Send(osc.NewMessage("/sys/info", int32(gridServerPort)))
-
-	//  else if address == keyAddr then handleKey(msg)
-	//  else if address == encAddr then handleEnc(msg)
-	//  else if address == tiltAddr then handleTilt(msg)
 
 	return g
 }
@@ -91,6 +97,9 @@ func (g *Grid) handleRotation(msg *osc.Message) {
 
 func (g *Grid) handleDisconnect(msg *osc.Message) {
 	log.Printf("handleDisconnect: %v", msg)
+	g.s.Close()
+	g.Disconnect <- struct{}{}
+	log.Printf("handleDisconnect: %v", "FINISHED")
 }
 
 func (g *Grid) handleKey(msg *osc.Message) {

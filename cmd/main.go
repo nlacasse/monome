@@ -6,27 +6,29 @@ import (
 	"github.com/nlacasse/monome"
 )
 
-type dis struct{}
-
-func (d *dis) HandleConnect(g *monome.Grid) {
-	log.Printf("HandleConnect")
-
+func runDevice(g *monome.Grid) {
+	log.Printf("runDevice")
 	for {
-		keyEv := <-g.Ev
-		log.Printf("GOT KEY %x", keyEv)
-		if keyEv.T == monome.KeyUp {
-			g.SetLED(keyEv.X, keyEv.Y, true)
-		} else {
-			g.SetLED(keyEv.X, keyEv.Y, false)
+		select {
+		case keyEv := <-g.Ev:
+			log.Printf("GOT KEY %x", keyEv)
+			if keyEv.T == monome.KeyUp {
+				g.SetLED(keyEv.X, keyEv.Y, true)
+			} else {
+				g.SetLED(keyEv.X, keyEv.Y, false)
+			}
+		case <-g.Disconnect:
+			log.Printf("Disconnect!!")
+			return
 		}
 	}
 }
 
-func (d *dis) HandleDisconnect(g *monome.Grid) {
-	log.Printf("HandleDisconnect")
-}
-
 func main() {
-	m := monome.New(&dis{})
-	m.Start()
+	m := monome.New()
+
+	for {
+		g := <-m.Devices
+		go runDevice(g)
+	}
 }
