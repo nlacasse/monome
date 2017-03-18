@@ -63,6 +63,8 @@ type Server struct {
 	Addr        string
 	Dispatcher  *OscDispatcher
 	ReadTimeout time.Duration
+	ln          net.PacketConn
+	closed      bool
 }
 
 // Timetag represents an OSC Time Tag.
@@ -548,6 +550,7 @@ func (s *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+	s.ln = ln
 	return s.Serve(ln)
 }
 
@@ -557,6 +560,9 @@ func (s *Server) Serve(c net.PacketConn) error {
 	var tempDelay time.Duration
 	for {
 		msg, err := s.readFromConnection(c)
+		if s.closed {
+			return nil
+		}
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if tempDelay == 0 {
@@ -573,10 +579,17 @@ func (s *Server) Serve(c net.PacketConn) error {
 			return err
 		}
 		tempDelay = 0
-		go s.Dispatcher.Dispatch(msg)
+		s.Dispatcher.Dispatch(msg)
 	}
 
 	return nil
+}
+
+func (s *Server) Close() {
+	s.closed = true
+	if s.ln != nil {
+		s.ln.Close()
+	}
 }
 
 // ReceivePacket listens for incoming OSC packets and returns the packet if one is received.
