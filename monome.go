@@ -55,7 +55,6 @@ func (m *Monome) newDevice(id string, typ string, port int32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.deviceMap[id]; ok {
-		log.Printf("device %v already connected", id)
 		return
 	}
 
@@ -104,7 +103,6 @@ func (m *Monome) handleRemove(msg *osc.Message) {
 	defer m.mu.Unlock()
 
 	if _, ok := m.deviceMap[id]; !ok {
-		log.Printf("device %v not connected", id)
 		return
 	}
 

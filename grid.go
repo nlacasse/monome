@@ -3,6 +3,7 @@ package monome
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/nlacasse/go-osc/osc"
 )
@@ -39,6 +40,9 @@ type Grid struct {
 
 	Ev         chan KeyEv
 	Disconnect chan struct{}
+
+	mu   sync.Mutex
+	Size [2]int
 }
 
 func NewGrid(port int32) *Grid {
@@ -81,6 +85,10 @@ func (g *Grid) handlePrefix(msg *osc.Message) {
 
 func (g *Grid) handleSize(msg *osc.Message) {
 	log.Printf("handleSize: %v", msg)
+	g.Size = [2]int{
+		int(msg.Arguments[0].(int32)),
+		int(msg.Arguments[1].(int32)),
+	}
 }
 
 func (g *Grid) handleId(msg *osc.Message) {
@@ -99,7 +107,6 @@ func (g *Grid) handleDisconnect(msg *osc.Message) {
 	log.Printf("handleDisconnect: %v", msg)
 	g.s.Close()
 	g.Disconnect <- struct{}{}
-	log.Printf("handleDisconnect: %v", "FINISHED")
 }
 
 func (g *Grid) handleKey(msg *osc.Message) {
@@ -109,7 +116,6 @@ func (g *Grid) handleKey(msg *osc.Message) {
 		Y: int(msg.Arguments[1].(int32)),
 		T: KeyEvType(msg.Arguments[2].(int32)),
 	}
-	log.Printf("handleKey down here")
 }
 
 func (g *Grid) SetLED(x, y int, on bool) {

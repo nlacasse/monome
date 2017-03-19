@@ -7,7 +7,6 @@ import (
 )
 
 func runDevice(g *monome.Grid) {
-	log.Printf("runDevice")
 	for {
 		select {
 		case keyEv := <-g.Ev:
@@ -18,7 +17,6 @@ func runDevice(g *monome.Grid) {
 				g.SetLED(keyEv.X, keyEv.Y, false)
 			}
 		case <-g.Disconnect:
-			log.Printf("Disconnect!!")
 			return
 		}
 	}
