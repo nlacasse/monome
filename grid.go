@@ -15,8 +15,8 @@ const (
 type KeyEvType int
 
 const (
-	KeyDown KeyEvType = iota
-	KeyUp
+	KeyUp KeyEvType = iota
+	KeyDown
 )
 
 type KeyEv struct {
